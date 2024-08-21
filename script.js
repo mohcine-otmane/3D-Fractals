@@ -12,7 +12,21 @@ function lerp(p0, p1, t) {
     return p0 + t * (p1 - p0);
 }
 
-// Create a Mandelbulb fractal with interpolation between vertices and color variations
+// Linear interpolation function for colors
+function lerpColor(color1, color2, t) {
+    return new THREE.Color(
+        lerp(color1.r, color2.r, t),
+        lerp(color1.g, color2.g, t),
+        lerp(color1.b, color2.b, t)
+    );
+}
+
+// Random color generator
+function randomColor() {
+    return new THREE.Color(Math.random(), Math.random(), Math.random());
+}
+
+// Create a Mandelbulb fractal with color blending
 function createMandelbulb() {
     const geometry = new THREE.BufferGeometry();
     const vertices = [];
@@ -21,6 +35,8 @@ function createMandelbulb() {
     const scale = 2;
     const maxIterations = 5; // Lower number of iterations for simplification
     const distanceThreshold = 10; // Distance within which vertices are rendered
+
+    const vertexColors = {};
 
     for (let x = -resolution; x < resolution; x++) {
         for (let y = -resolution; y < resolution; y++) {
@@ -39,18 +55,20 @@ function createMandelbulb() {
                 let z1 = Math.pow(r, 4) * Math.cos(theta * 4);
 
                 let i = 0;
-                while (r < 2 && i < maxIterations) {
+                while (r < 1 && i < maxIterations) {
                     r = Math.sqrt(x1 * x1 + y1 * y1 + z1 * z1);
-                    theta = Math.atan2(Math.sqrt(x1 * x1 + y1 * y1), z1*Math.random()*10);
+                    theta = Math.atan2(Math.sqrt(x1 * x1 + y1 * y1), z1);
                     phi = Math.atan2(y1, x1);
-                    x1 = Math.pow(r, 4*Math.random()) * Math.sin(theta * 4*Math.random()) * Math.cos(phi * 4);
-                    y1 = Math.pow(r, 4*Math.random()) * Math.sin(theta * 4*Math.random()) * Math.sin(phi * 4);
-                    z1 = Math.pow(r, 4*Math.random()) * Math.cos(theta * 4*Math.random());
+                    x1 = Math.pow(r, 4) * Math.sin(theta * 4) * Math.cos(phi * 4);
+                    y1 = Math.pow(r, 4) * Math.sin(theta * 4) * Math.sin(phi * 4);
+                    z1 = Math.pow(r, 4) * Math.cos(theta * 4);
                     i++;
                 }
 
-                // Original vertex color
-                const color = new THREE.Color(`hsl(${(i / maxIterations) * 360}, 100%, 50%)`);
+                // Random vertex color
+                const color = randomColor();
+                vertexColors[`${x1},${y1},${z1}`] = color;
+
                 colors.push(color.r, color.g, color.b);
                 vertices.push(x1, y1, z1);
 
@@ -67,8 +85,36 @@ function createMandelbulb() {
                         let x3 = Math.pow(r2, 4) * Math.sin(theta2 * 4) * Math.cos(phi2 * 4);
                         let y3 = Math.pow(r2, 4) * Math.sin(theta2 * 4) * Math.sin(phi2 * 4);
                         let z3 = Math.pow(r2, 4) * Math.cos(theta2 * 4);
-                        const color2 = new THREE.Color(`hsl(${(i / maxIterations) * 360}, 100%, 50%)`);
-                        colors.push(color2.r, color2.g, color2.b);
+
+                        // Get colors for current and next vertex
+                        const color1 = vertexColors[`${x1},${y1},${z1}`] || randomColor();
+                        const color2 = vertexColors[`${x3},${y3},${z3}`] || randomColor();
+                        const blendedColor = lerpColor(color1, color2, 0.5);
+
+                        colors.push(blendedColor.r, blendedColor.g, blendedColor.b);
+                        vertices.push(lerp(x1, x3, 0.5), lerp(y1, y3, 0.5), lerp(z1, z3, 0.5));
+                    }
+                }
+
+                if (y < resolution - 1) {
+                    const x2 = scale * (x / resolution - 0.5);
+                    const y2 = scale * ((y + 1) / resolution - 0.5);
+                    const z2 = scale * (z / resolution - 0.5);
+                    let r2 = Math.sqrt(x2 * x2 + y2 * y2 + z2 * z2);
+
+                    if (r2 <= distanceThreshold) {
+                        let theta2 = Math.atan2(Math.sqrt(x2 * x2 + y2 * y2), z2);
+                        let phi2 = Math.atan2(y2, x2);
+                        let x3 = Math.pow(r2, 4) * Math.sin(theta2 * 4) * Math.cos(phi2 * 4);
+                        let y3 = Math.pow(r2, 4) * Math.sin(theta2 * 4) * Math.sin(phi2 * 4);
+                        let z3 = Math.pow(r2, 4) * Math.cos(theta2 * 4);
+
+                        // Get colors for current and next vertex
+                        const color1 = vertexColors[`${x1},${y1},${z1}`] || randomColor();
+                        const color2 = vertexColors[`${x3},${y3},${z3}`] || randomColor();
+                        const blendedColor = lerpColor(color1, color2, 0.5);
+
+                        colors.push(blendedColor.r, blendedColor.g, blendedColor.b);
                         vertices.push(lerp(x1, x3, 0.5), lerp(y1, y3, 0.5), lerp(z1, z3, 0.5));
                     }
                 }
@@ -181,7 +227,7 @@ function animate() {
     if (moveLeft) camera.position.x -= moveSpeed;
     if (moveRight) camera.position.x += moveSpeed;
     if (moveUp) camera.position.y += moveSpeed;
-    if (moveDown) camera.position.y -= moveSpeed;
+    if (moveDown) camera.position.y += moveSpeed;
 
     renderer.render(scene, camera);
 }
